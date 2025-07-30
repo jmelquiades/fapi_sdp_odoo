@@ -79,7 +79,7 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
             cambios.append('name')
 
         # Usamos directamente el HTML que viene del SDP
-        if description and description.strip() != (datos_actuales['description'] or "").strip():
+        if description:
             updates['description'] = description.strip()
             cambios.append('description')
 
