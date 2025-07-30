@@ -1,10 +1,9 @@
 # imports
-from bs4 import BeautifulSoup
 import xmlrpc.client
 import json
 from datetime import datetime
 
-# conexión
+# conexión (esto lo mantenemos igual)
 url = "https://criteria.odoo.com"
 db = "criteria-main-11789857"
 username = "api@criteria.pe"
@@ -18,7 +17,7 @@ if not uid:
 
 models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
 
-# función para mapear estados
+# función de mapeo de estados
 def obtener_stage_id(nombre_estado: str) -> int:
     mapa_estados = {
         "Nuevo": 1,
@@ -31,7 +30,7 @@ def obtener_stage_id(nombre_estado: str) -> int:
     }
     return mapa_estados.get(nombre_estado.strip(), 1)
 
-# ✅ CREAR ticket (mantener igual)
+# ✅ función para crear ticket
 def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_display_id_sdp):
     stage_id = obtener_stage_id(estado)
     
@@ -54,62 +53,66 @@ def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_d
 
     return ticket_data[0]
 
-# ✅ ACTUALIZAR ticket (mantiene HTML)
+# ✅ función para actualizar ticket
 def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None, subject=None):
-    domain = [('x_studio_sdpticket', '=', ticket_display_id_sdp)]
-    ids = models.execute_kw(db, uid, password, 'helpdesk.ticket', 'search', [domain])
+    cambios = []  # Siempre inicializar
 
-    if not ids:
-        print(f"❌ No se encontró un ticket con SDP Display ID {ticket_display_id_sdp}")
-        return {"error": f"No se encontró un ticket con ref SDP: {ticket_display_id_sdp}"}
+    try:
+        domain = [('x_studio_sdpticket', '=', ticket_display_id_sdp)]
+        ids = models.execute_kw(db, uid, password, 'helpdesk.ticket', 'search', [domain])
 
-    ticket_id = ids[0]
+        if not ids:
+            print(f"❌ No se encontró un ticket con SDP Display ID {ticket_display_id_sdp}")
+            return {"error": f"No se encontró un ticket con ref SDP: {ticket_display_id_sdp}", "cambios": cambios}
 
-    datos_actuales = models.execute_kw(db, uid, password,
-        'helpdesk.ticket', 'read', [[ticket_id]],
-        {'fields': ['name', 'description', 'stage_id']}
-    )[0]
+        ticket_id = ids[0]
 
-    updates = {}
-    cambios = []
+        datos_actuales = models.execute_kw(db, uid, password,
+            'helpdesk.ticket', 'read', [[ticket_id]],
+            {'fields': ['name', 'description', 'stage_id']}
+        )[0]
 
-    # Validar y aplicar cambio en asunto
-    if subject and subject.strip() != datos_actuales['name']:
-        updates['name'] = subject.strip()
-        cambios.append('name')
+        updates = {}
 
-    # Validar y aplicar cambio en descripción HTML
-    if description and description.strip() != (datos_actuales['description'] or "").strip():
-        updates['description'] = description.strip()
-        cambios.append('description')
+        if subject and subject.strip() != datos_actuales['name']:
+            updates['name'] = subject.strip()
+            cambios.append('name')
 
-    # Validar y aplicar cambio en estado
-    if estado:
-        try:
-            estado_obj = json.loads(estado) if isinstance(estado, str) else estado
-            nombre_estado = estado_obj.get("name", "").strip()
-        except:
-            nombre_estado = estado.strip()
+        # Usamos directamente el HTML que viene del SDP
+        if description and description.strip() != (datos_actuales['description'] or "").strip():
+            updates['description'] = description.strip()
+            cambios.append('description')
 
-        nuevo_stage_id = obtener_stage_id(nombre_estado)
+        if estado:
+            try:
+                estado_obj = json.loads(estado) if isinstance(estado, str) else estado
+                nombre_estado = estado_obj.get("name", "").strip()
+            except:
+                nombre_estado = estado.strip()
 
-        if datos_actuales['stage_id'] and nuevo_stage_id != datos_actuales['stage_id'][0]:
-            updates['stage_id'] = nuevo_stage_id
-            cambios.append('stage_id')
+            nuevo_stage_id = obtener_stage_id(nombre_estado)
 
-    # Ejecutar actualización si hay cambios
-    if updates:
-        models.execute_kw(db, uid, password,
-            'helpdesk.ticket', 'write', [[ticket_id], updates])
-        print(f"✅ Ticket {ticket_display_id_sdp} actualizado con cambios: {cambios}")
-        return {
-            "mensaje": "✅ Ticket actualizado correctamente en Odoo",
-            "ticket_ref_actualizado": ticket_display_id_sdp,
-            "cambios_aplicados": cambios
-        }
-    else:
-        print(f"ℹ️ No hubo cambios en el ticket {ticket_display_id_sdp}")
-        return {
-            "mensaje": "ℹ️ Ticket sin cambios",
-            "ticket_ref_actualizado": ticket_display_id_sdp
-        }
+            if datos_actuales['stage_id'] and nuevo_stage_id != datos_actuales['stage_id'][0]:
+                updates['stage_id'] = nuevo_stage_id
+                cambios.append('stage_id')
+
+        if updates:
+            models.execute_kw(db, uid, password,
+                'helpdesk.ticket', 'write', [[ticket_id], updates])
+            print(f"✅ Ticket {ticket_display_id_sdp} actualizado con cambios: {cambios}")
+            return {
+                "mensaje": "✅ Ticket actualizado correctamente en Odoo",
+                "ticket_ref_actualizado": ticket_display_id_sdp,
+                "cambios_aplicados": cambios
+            }
+        else:
+            print(f"ℹ️ No hubo cambios en el ticket {ticket_display_id_sdp}")
+            return {
+                "mensaje": "ℹ️ Ticket sin cambios",
+                "ticket_ref_actualizado": ticket_display_id_sdp,
+                "cambios_aplicados": cambios
+            }
+
+    except Exception as e:
+        print(f"❌ Error al actualizar ticket: {str(e)}")
+        return {"detail": f"❌ Error al actualizar ticket: {str(e)}", "cambios": cambios}
