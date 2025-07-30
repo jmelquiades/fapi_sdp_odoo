@@ -4,7 +4,7 @@ import xmlrpc.client
 import json
 from datetime import datetime
 
-# conexión (esto lo mantenemos igual)
+# conexión
 url = "https://criteria.odoo.com"
 db = "criteria-main-11789857"
 username = "api@criteria.pe"
@@ -18,7 +18,7 @@ if not uid:
 
 models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
 
-# función de mapeo de estados
+# función para mapear estados
 def obtener_stage_id(nombre_estado: str) -> int:
     mapa_estados = {
         "Nuevo": 1,
@@ -31,7 +31,7 @@ def obtener_stage_id(nombre_estado: str) -> int:
     }
     return mapa_estados.get(nombre_estado.strip(), 1)
 
-# ✅ mantener la función que ya estaba funcionando
+# ✅ CREAR ticket (mantener igual)
 def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_display_id_sdp):
     stage_id = obtener_stage_id(estado)
     
@@ -54,7 +54,7 @@ def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_d
 
     return ticket_data[0]
 
-# ✅ nueva función: actualizar
+# ✅ ACTUALIZAR ticket (mantiene HTML)
 def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None, subject=None):
     domain = [('x_studio_sdpticket', '=', ticket_display_id_sdp)]
     ids = models.execute_kw(db, uid, password, 'helpdesk.ticket', 'search', [domain])
@@ -73,15 +73,17 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
     updates = {}
     cambios = []
 
+    # Validar y aplicar cambio en asunto
     if subject and subject.strip() != datos_actuales['name']:
         updates['name'] = subject.strip()
         cambios.append('name')
 
-    descripcion_limpia = BeautifulSoup(description or "", "html.parser").get_text()
-    if descripcion_limpia and descripcion_limpia.strip() != (datos_actuales['description'] or "").strip():
-        updates['description'] = descripcion_limpia.strip()
+    # Validar y aplicar cambio en descripción HTML
+    if description and description.strip() != (datos_actuales['description'] or "").strip():
+        updates['description'] = description.strip()
         cambios.append('description')
 
+    # Validar y aplicar cambio en estado
     if estado:
         try:
             estado_obj = json.loads(estado) if isinstance(estado, str) else estado
@@ -95,6 +97,7 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
             updates['stage_id'] = nuevo_stage_id
             cambios.append('stage_id')
 
+    # Ejecutar actualización si hay cambios
     if updates:
         models.execute_kw(db, uid, password,
             'helpdesk.ticket', 'write', [[ticket_id], updates])
