@@ -77,9 +77,11 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
         # Actualizar todos los campos
         updates = {
             "name": subject or "Ticket sin título",
-            "description": description or "",
             "stage_id": stage_id
         }
+
+        if description is not None:
+            updates["description"] = description
 
         models.execute_kw(db, uid, password,
             'helpdesk.ticket', 'write', [[ticket_id], updates])
