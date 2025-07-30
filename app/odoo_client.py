@@ -3,7 +3,7 @@ import xmlrpc.client
 import json
 from datetime import datetime
 
-# conexión (esto lo mantenemos igual)
+# conexión
 url = "https://criteria.odoo.com"
 db = "criteria-main-11789857"
 username = "api@criteria.pe"
@@ -53,7 +53,7 @@ def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_d
 
     return ticket_data[0]
 
-# ✅ función simplificada para actualizar ticket
+# ✅ función para actualizar ticket sin comparación previa
 def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None, subject=None):
     try:
         domain = [('x_studio_sdpticket', '=', ticket_display_id_sdp)]
@@ -65,18 +65,16 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
 
         ticket_id = ids[0]
 
-        # Obtener stage_id correspondiente al estado
-        if estado:
-            try:
-                estado_obj = json.loads(estado) if isinstance(estado, str) else estado
-                nombre_estado = estado_obj.get("name", "").strip()
-            except:
-                nombre_estado = estado.strip()
-            stage_id = obtener_stage_id(nombre_estado)
-        else:
-            stage_id = obtener_stage_id("Nuevo")
+        # Determinar el estado
+        try:
+            estado_obj = json.loads(estado) if isinstance(estado, str) else estado
+            nombre_estado = estado_obj.get("name", "").strip()
+        except:
+            nombre_estado = estado.strip() if estado else "Nuevo"
+        
+        stage_id = obtener_stage_id(nombre_estado)
 
-        # Preparar todos los datos para actualización sin comparar
+        # Actualizar todos los campos
         updates = {
             "name": subject or "Ticket sin título",
             "description": description or "",

@@ -17,34 +17,6 @@ class TicketData(BaseModel):
 def inicio():
     return {"message": "FastAPI está corriendo correctamente"}
 
-#@app.post("/crear-ticket")
-#def crear_ticket(ticket: TicketData):
-    try:
-        # Convertir la fecha enviada (hora Lima) a UTC
-        lima = pytz.timezone("America/Lima")
-        fecha_local = datetime.strptime(ticket.fecha_creacion, "%Y-%m-%d %H:%M:%S")
-        fecha_local = lima.localize(fecha_local)
-        fecha_utc = fecha_local.astimezone(pytz.utc)
-        fecha_formateada = fecha_utc.strftime("%Y-%m-%d %H:%M:%S")
-
-        # Crear ticket en Odoo
-        nuevo_ticket = crear_ticket_odoo(
-            subject=ticket.subject,
-            description=ticket.description,
-            estado=ticket.estado,
-            fecha_creacion_sdp=fecha_formateada,
-            ticket_display_id_sdp=ticket.ticket_ref
-        )
-
-        return {
-            "mensaje": "🎫 Ticket creado correctamente en Odoo",
-            "id_interno_odoo": nuevo_ticket["id"],
-            "ticket_ref_odoo": nuevo_ticket["ticket_ref"]
-        }
-
-    except Exception as e:
-        return {"detail": f"❌ Error al crear ticket: {str(e)}"}
-
 @app.post("/crear-ticket")
 def crear_ticket(ticket: TicketData):
     try:
@@ -83,7 +55,6 @@ def crear_ticket(ticket: TicketData):
     except Exception as e:
         return {"detail": f"❌ Error al crear ticket: {str(e)}"}
 
-
 @app.put("/actualizar-ticket")
 def actualizar_ticket(data: TicketData):
     try:
@@ -94,15 +65,11 @@ def actualizar_ticket(data: TicketData):
             description=data.description
         )
 
-        if resultado:
-            return {
-                "mensaje": "✅ Ticket actualizado correctamente en Odoo",
-                "ticket_ref_actualizado": data.ticket_ref,
-                "cambios_aplicados": resultado["cambios"]
-            }
+        if resultado.get("mensaje", "").startswith("✅"):
+            return resultado
         else:
             return {
-                "mensaje": "⚠️ Ticket no encontrado o no se aplicaron cambios",
+                "mensaje": "⚠️ No se aplicaron cambios o ticket no encontrado",
                 "ticket_ref_intentado": data.ticket_ref
             }
 
