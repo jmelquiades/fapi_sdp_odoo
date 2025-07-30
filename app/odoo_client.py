@@ -1,13 +1,15 @@
+# imports
+from bs4 import BeautifulSoup
 import xmlrpc.client
+import json
 from datetime import datetime
 
-# Configuración Odoo
+# conexión (esto lo mantenemos igual)
 url = "https://criteria.odoo.com"
 db = "criteria-main-11789857"
 username = "api@criteria.pe"
 password = "cr1t3r1425$"
 
-# Conexión y autenticación
 common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
 uid = common.authenticate(db, username, password, {})
 
@@ -16,7 +18,7 @@ if not uid:
 
 models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
 
-# Mapa de estados
+# función de mapeo de estados
 def obtener_stage_id(nombre_estado: str) -> int:
     mapa_estados = {
         "Nuevo": 1,
@@ -29,7 +31,7 @@ def obtener_stage_id(nombre_estado: str) -> int:
     }
     return mapa_estados.get(nombre_estado.strip(), 1)
 
-# Crear ticket y retornar también el ticket_ref generado por Odoo
+# ✅ mantener la función que ya estaba funcionando
 def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_display_id_sdp):
     stage_id = obtener_stage_id(estado)
     
@@ -45,7 +47,6 @@ def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_d
         }]
     )
 
-    # Leer campos adicionales (ticket_ref) del ticket recién creado
     ticket_data = models.execute_kw(db, uid, password,
         'helpdesk.ticket', 'read',
         [[nuevo_ticket_id], ['id', 'ticket_ref']]
@@ -53,14 +54,14 @@ def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_d
 
     return ticket_data[0]
 
-# Actualizar ticket solo si hay cambios
+# ✅ nueva función: actualizar
 def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None, subject=None):
     domain = [('x_studio_sdpticket', '=', ticket_display_id_sdp)]
     ids = models.execute_kw(db, uid, password, 'helpdesk.ticket', 'search', [domain])
 
     if not ids:
         print(f"❌ No se encontró un ticket con SDP Display ID {ticket_display_id_sdp}")
-        return None
+        return {"error": f"No se encontró un ticket con ref SDP: {ticket_display_id_sdp}"}
 
     ticket_id = ids[0]
 
@@ -72,16 +73,24 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
     updates = {}
     cambios = []
 
-    if subject and subject != datos_actuales['name']:
-        updates['name'] = subject
+    if subject and subject.strip() != datos_actuales['name']:
+        updates['name'] = subject.strip()
         cambios.append('name')
 
-    if description and description != datos_actuales['description']:
-        updates['description'] = description
+    descripcion_limpia = BeautifulSoup(description or "", "html.parser").get_text()
+    if descripcion_limpia and descripcion_limpia.strip() != (datos_actuales['description'] or "").strip():
+        updates['description'] = descripcion_limpia.strip()
         cambios.append('description')
 
     if estado:
-        nuevo_stage_id = obtener_stage_id(estado)
+        try:
+            estado_obj = json.loads(estado) if isinstance(estado, str) else estado
+            nombre_estado = estado_obj.get("name", "").strip()
+        except:
+            nombre_estado = estado.strip()
+
+        nuevo_stage_id = obtener_stage_id(nombre_estado)
+
         if datos_actuales['stage_id'] and nuevo_stage_id != datos_actuales['stage_id'][0]:
             updates['stage_id'] = nuevo_stage_id
             cambios.append('stage_id')
@@ -90,7 +99,14 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
         models.execute_kw(db, uid, password,
             'helpdesk.ticket', 'write', [[ticket_id], updates])
         print(f"✅ Ticket {ticket_display_id_sdp} actualizado con cambios: {cambios}")
+        return {
+            "mensaje": "✅ Ticket actualizado correctamente en Odoo",
+            "ticket_ref_actualizado": ticket_display_id_sdp,
+            "cambios_aplicados": cambios
+        }
     else:
         print(f"ℹ️ No hubo cambios en el ticket {ticket_display_id_sdp}")
-
-    return {"id": ticket_id, "cambios": cambios}
+        return {
+            "mensaje": "ℹ️ Ticket sin cambios",
+            "ticket_ref_actualizado": ticket_display_id_sdp
+        }
