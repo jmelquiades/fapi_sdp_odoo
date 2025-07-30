@@ -55,7 +55,7 @@ def crear_ticket_odoo(subject, description, estado, fecha_creacion_sdp, ticket_d
 
 # ✅ función para actualizar ticket
 def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None, subject=None):
-    cambios = []  # Siempre inicializar
+    cambios = []  # 🔐 aseguramos que siempre exista
 
     try:
         domain = [('x_studio_sdpticket', '=', ticket_display_id_sdp)]
@@ -74,15 +74,17 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
 
         updates = {}
 
+        # ✏️ asunto
         if subject and subject.strip() != datos_actuales['name']:
             updates['name'] = subject.strip()
             cambios.append('name')
 
-        # Usamos directamente el HTML que viene del SDP
+        # ✏️ descripción (HTML desde SDP)
         if description:
             updates['description'] = description.strip()
             cambios.append('description')
 
+        # ✏️ estado
         if estado:
             try:
                 estado_obj = json.loads(estado) if isinstance(estado, str) else estado
@@ -96,6 +98,7 @@ def actualizar_ticket_odoo(ticket_display_id_sdp, estado=None, description=None,
                 updates['stage_id'] = nuevo_stage_id
                 cambios.append('stage_id')
 
+        # ✅ Aplicar actualizaciones si hay
         if updates:
             models.execute_kw(db, uid, password,
                 'helpdesk.ticket', 'write', [[ticket_id], updates])
